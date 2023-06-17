@@ -163,3 +163,55 @@ void sweep_phase(){
 
 ### 位图标记
 
+标准的标记-清除算法中，由于标记和清除阶段会在对象的头空间写入内容，导致写时复制。
+
+为了解决这个问题，可以把表示内存区域是否已被标记的属性从该区域挪走，统一放在一个单独区域（即位图区），如下图：
+
+![mark-sweep-7](./images/mark-sweep-7.png)
+
+每个字节都有一位表示该区域是否存活，当然这时候会有大量位是无效的。
+
+这样，在标记阶段，就不会影响到源堆，每次获取到一个新对象时，都是在独立的空间中进行读写操作。
+
+这样的改进有两个优点：
+
+- 与写时复制兼容；
+- 清除阶段，不需要对活动对象进行处理；堆遍历完毕后，直接将位图区域都置位为0即可，而这个区域会明显比较小；
+
+
+
+### 延迟清除法
+
+清除时，清除用的时间与堆大小成正比，堆越大，时间越长。延迟清除法主要是为了减少清除阶段的用时，在标记结束后，不是立马执行清除操作。
+
+伪代码如下：
+
+```c
+void new_obj(size){
+ chunk = lazy_sweep(size)
+ if(chunk != NULL)
+ 	return chunk
+ mark_phase()
+ chunk = lazy_sweep(size)
+ if(chunk != NULL)
+ 	return chunk
+ allocation_fail()
+}
+
+void lazy_sweep(size){
+ while($sweeping < $heap_end)
+ 	if($sweeping.mark == TRUE)
+ 		$sweeping.mark = FALSE
+ 	else if($sweeping.size >= size)
+ 		chunk = $sweeping
+ 		$sweeping += $sweeping.size
+ 		return chunk
+ 	$sweeping += $sweeping.size
+ $sweeping = $heap_start
+ return NULL
+}
+```
+
+上层申请空间时，调用 new_obj 进行申请；而 new_obj 内部会直接调用 lazy_sweep 函数，这个函数会从当前 sweeping 指针处开始遍历，只要遇到一个满足分配尺寸的垃圾空间，就直接返回；如果一直遍历到堆结束还没有找到这样的对象，就将 sweeping 重置到堆开头。而在 new_obj 中，第一次调用 lazy_sweep 失败的话，就执行一次 mark 操作，试图将堆上更多的垃圾释放出来；然后再执行一次 lazy_sweep 操作，这次是从堆开头进行遍历，如果依然没有找到合适的，就说明目前堆上确实没有合适的内存区域。
+
+这个算法中，sweeping 是一个全局指针；整个算法把清除垃圾的时间平摊到了多次申请内存空间操作上，以缩短清除操作延时。不过该算法中，标记阶段的延时并没有得到改善。
