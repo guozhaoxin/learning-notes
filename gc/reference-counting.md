@@ -337,4 +337,4 @@ void collect_white(obj){
 
 其次，它并不能解决自引用的问题，如下图中 A 自己引用了自己，当对 A 进行遍历处理时，A 的计数最终只会减为 1，导致无法释放，又被标记为黑色。
 
-![5](D:\code\learning-notes\gc\images\5.png)
+![5](./images/5.png)
