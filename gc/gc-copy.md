@@ -100,5 +100,101 @@ void new_obj(size){
 
 ### GC 复制算法的缺点
 
+- 首先，该算法堆的利用率很低，因为它只能用一半的空间来分配对象；
+- 不兼容保守式 GC ，因为它会调整活动对象的位置；
+- 递归调用很可怕，保不齐会爆栈；
 
+
+
+## Cheney GC 复制算法
+
+这是一个改进型的 GC 复制算法，相比上面的 GC 复制，它使用迭代而不是递归来进行复制 GC。
+
+它的伪代码如下：
+
+```c
+void copying(){
+ scan = $free = $to_start
+ for(r : $roots)
+ 	*r = copy(*r)
+ while(scan != $free)
+ 	for(child : children(scan))
+ 		*child = copy(*child)
+ 	scan += scan.size
+ swap($from_start, $to_start)
+}
+
+void copy(obj){
+ if(is_pointer_to_heap(obj.forwarding, $to_start) == FALSE)
+ 	copy_data($free, obj, obj.size)
+ 	obj.forwarding = $free
+ 	$free += obj.size
+ return obj.forwarding
+}
+
+```
+
+可以看到，这个算法中没有递归调用，而是用迭代方式完成复制动作；
+
+这里除了使用 free 指针外，还引入了一个叫做 scan 的指针；free 指针依然表示空闲空间的开始 处，而 scan 则指向下一个要处理的对象的开始处；
+
+首先将根对象直接引用的对象复制到新空间中；然后对 scan 指向的对象进行处理，依次将其引用的对象都复制到 to 空间中，直到 scan 追上 free，表示都处理完毕。
+
+
+
+### 初始状态
+
+假设初始状态如下：
+
+![gc-copy-5](./images/gc-copy-5.png)
+
+可以看到， 共有 7 个对象， A B E  G 是活动对象，B G 可以直接被根引用到。
+
+初始时，scan 和 free 都指向 to 空间起始的位置。
+
+
+
+### 对根引用的对象进行复制
+
+![gc-copy-6](./images/gc-copy-6.png)
+
+第一步是先复制 B G 对象，可以看到 B G 被复制到 to 空间后，scan 依然指向 to 开始的地方，而 free 则指向新的空闲位置，即此时 scan 指针落后于 free。
+
+
+
+### 处理 B 引用的对象
+
+![gc-copy-7](./images/gc-copy-7.png)
+
+对 B 引用的对象进行复制，即复制 A；A 被复制后，scan 向前移动到新的 G 的位置，而 free 也向前移动。
+
+
+
+### 处理 G 引用的对象
+
+在处理完 A 后，因为 B 没有再引用其它对象，而 A 没有引用任何对象，因此 A 处理完毕，开始处理 G 引用的对象，依次对 G 引用的 E B 进行处理，其中 E 需要复制，而 B 由于已经处理过了，直接更新 G 的相关字段即可，在这一步处理 B 结束后，scan 向 to 的终点移动，而 free 不动；正因为这样，scan 就可以追上 free。
+
+
+
+### 最终结果
+
+最终状态如下：
+
+![gc-copy-8](./images/gc-copy-8.png)
+
+最终，scan 追上了 free，处理结束；交换相关指针即可。
+
+
+
+### 算法中美妙的地方
+
+可以看到，这个算法在遍历相关属性时，用的是广度遍历，但一般的广度遍历需要一个单独的队列进行辅助；而这里很巧妙的使用了 scan 和 free 之间的空间作为队列，节省了空间。
+
+### Cheney GC 优点
+
+毫无疑问，它几乎没有爆栈的危险，也不用因为频繁的函数调用而消耗太多性能。
+
+### Cheney GC 缺点
+
+这个算法中有相关关系的对象之间离距离比较远，缓存没有上面的好。
 
