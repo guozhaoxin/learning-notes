@@ -198,3 +198,79 @@ void copy(obj){
 
 这个算法中有相关关系的对象之间离距离比较远，缓存没有上面的好。
 
+
+
+## 多空间复制算法
+
+因为在标准的复制算法中，空间利用率很低，为了提高利用率，这个算法提出，将堆均分为 N 份；其中一份是 from 空间，一份是 to 空间，并在这两份中执行复制算法，剩下的 N-2 份则执行标记-清除算法；伪代码如下：
+
+```c
+multi_space_copying(){
+ $free = $heap[$to_space_index]
+ for(r : $roots)
+ 	*r = mark_or_copy(*r)
+ for(index : 0..(N-1))
+ 	if(is_copying_index(index) == FALSE)
+ 		sweep_block(index)
+ $to_space_index = $from_space_index
+ $from_space_index = ($from_space_index + 1) % N
+}
+
+mark_or_copy(obj){
+ if(is_pointer_to_from_space(obj) == TRUE)
+ 	return copy(obj)
+ else
+ 	if(obj.mark == FALSE)
+ 	obj.mark = TRUE
+ 	for(child : children(obj))
+ 		*child = mark_or_copy(*child)
+ 	return obj
+}
+
+copy(obj){
+ if(obj.tag != COPIED)
+ 	 copy_data($free, obj, obj.size)
+     obj.tag = COPIED
+     obj.forwarding = $free
+     $free += obj.size
+     for(child : children(obj.forwarding))
+         *child = mark_or_copy(*child)
+     return obj.forwarding
+}
+```
+
+需要注意的是，虽然算法中依然所有 from 和 to 空间，但是这两个空间并不是固定的，而是在 N 份空间中滚动，from 和 to 空间连续往右滚动。
+
+当开始 gc 时，先对根引用的对象进行操作；这里调用的是 mark_or_copy 函数。要注意的是这个函数虽然起名 mark，但是内部会先判断当前处理的对象是不是在 from 空间中，不在 from 中的调用标记-清楚算法，而在 from 中的则执行 copy 函数；copy 函数中执行复制算法，先将对象在 to 空间中进行复制，然后对其各应用对象调用 mark_or_copy 依次处理。
+
+
+
+### 执行过程
+
+假设堆被分为 4 份。
+
+当前堆和各参数状态如下：
+
+![gc-copy-9](./images/gc-copy-9.png)
+
+注意，依然有空闲链表，因为有 2 个空间是执行标记-清除的。
+
+第一个空间是 to 空间，第二个空间是 from 空间。
+
+第一次 gc 执行结束后，状态变为：
+
+![gc-copy-10](./images/gc-copy-10.png)
+
+可以看到，gc 后，原来 1 号空间中的对象都堆积在 0 号空间一边，而 2 号 和 3 号空间则包含内存碎片，通过空闲链表连接；而 2 号空间变成了新的 to 空间，3 号变成新的 from 空间。
+
+第二次 gc 后 ，变为：
+
+![gc-copy-11](./images/gc-copy-11.png)
+
+### 优点
+
+堆利用率变高，因为只有一个块作为交换空间。
+
+### 缺点
+
+因为引入标记-清除，所以当 free 无法满足时，依然会有耗时的遍历操作。
