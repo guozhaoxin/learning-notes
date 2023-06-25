@@ -123,3 +123,63 @@ write_barrier(obj,field,newobj){
 ![incremental-gc-2](./images/incremental-gc-2.jpg)
 
 可以看到，当 A B C 之间的引用关系更改后，C 被标记为灰色，以防止其丢失。
+
+#### 清除阶段
+
+清除阶段和标记-清除算法中差不多，不过需要做一些改造：
+
+```c
+incremental_sweep_phase(){ 
+  swept_count = 0 
+  while(swept_count < SWEEP_MAX)
+		if($sweeping < $heap_end) 
+      if($sweeping.mark == TRUE)
+				$sweeping.mark = FALSE 
+      else
+				$sweeping.next = $free_list 
+        $free_list = $sweeping 
+        $free_size += $sweeping.size
+			$sweeping += $sweeping.size
+			swept_count++ 
+     else
+			$gc_phase = GC_ROOT_SCAN
+			return 
+}
+```
+
+清除阶段需要注意的是，它每次清除时，指定了最多清除的次数，防止阻塞过长时间；另外就是它由一个全局的 free_size 变量，这个变量在分配对象时有用。
+
+
+
+#### 分配对象
+
+分配对象函数如下：
+
+```c
+newobj(size){
+	if($free_size < HEAP_SIZE * GC_THRESHOLD)
+		incremental_gc()
+	chunk = pickup_chunk(size, $free_list) 
+	if(chunk != NULL)
+		chunk.size = size
+		$free_size -= size
+		if($gc_phase == GC_SWEEP && $sweeping <= chunk)
+			chunk.mark = TRUE
+		return chunk 
+  else
+		allocation_fail()
+}
+```
+
+每次分配新对象时，会先判断当前堆的总空闲空间是不是达到一个临界下限，一旦达到，就执行一次 gc；然后再尝试重新分配，如果还是分配不到，就认为没有满足要求的空间。而新分配的空间也要注意，要防止该空间处于尚未清理的空间，如果是的话，就要将其标记，防止清除阶段被错误当成垃圾处理。
+
+
+
+#### 优点
+
+明显，gc 时不会阻塞太久。
+
+#### 缺点
+
+写入屏障会导致吞吐量降低。
+
