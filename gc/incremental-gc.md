@@ -94,7 +94,7 @@ mark(obj){
 }
 ```
 
-可以看到，它只会执行一定次数的标记过程。但是一旦标记栈变为空，它似乎进行的是一次完整的标记过程。
+可以看到，它只会执行一定次数的标记过程。但是一旦标记栈变为空，准备进入清除阶段前，它会重新进行一次 mark 操作，主要是因为两次 mark 中间，可能有新的对象生成并可以通过根访问到，如果不增加一次这样处理的话，可能会误杀这些新对象。
 
 ![incremental-gc-1](./images/incremental-gc-1.jpg)
 
@@ -105,6 +105,8 @@ mark(obj){
 #### 写入屏障
 
 为了解决上面的问题，必须在更改对象引用关系时，引入内存屏障：
+
+这里是 Edsger W. Dijkstra 给出的内存屏障算法：
 
 ```
 write_barrier(obj,field,newobj){
@@ -166,7 +168,7 @@ newobj(size){
 		if($gc_phase == GC_SWEEP && $sweeping <= chunk)
 			chunk.mark = TRUE
 		return chunk 
-  else
+    else
 		allocation_fail()
 }
 ```
@@ -183,3 +185,106 @@ newobj(size){
 
 写入屏障会导致吞吐量降低。
 
+
+
+### Steele 算法
+
+这个算法是对上面算法的一个改动。上面的算法中，为了保证不会错误将活动对象作为垃圾处理，在修改引用关系时，会将尚未遍历过的新子对象强制性加入 mark_stack 中，也就是说如果这个对象在进程运行过程中变成了垃圾，在下次继续 gc 时，会依然作为活动对象处理，有一段时间的压堆。
+
+这个算法中通过稍微更改上面的逻辑，解决了这个问题。
+
+主要的改动如下：
+
+```c
+mark(obj){
+ if(obj.mark == FALSE)
+ 	push(obj, $mark_stack)
+}
+
+write_barrier(obj, field, newobj){
+ if($gc_phase == GC_MARK && obj.mark == TRUE && newobj.mark == FALSE)
+ 	obj.mark = FALSE
+ 	push(obj, $mark_stack)
+ *field = newobj
+}
+```
+
+首先，对一个未遍历对象进行标记时，只将其推入 mark_stack，不管它的颜色。
+
+其次，在写入屏障中，if 的条件会更严格，如果父对象已经被处理过而子对象还没有，则会对父对象进行处理，将其置为灰色，而不是对子对象进行处理。
+
+也就是说如下图：
+
+![incremental-gc-3](./images/incremental-gc-3.jpg)
+
+可以看到，在引用关系更改后，A 被置为灰色，并压入 mark_stack 中；这样 A 会被处理多次，以保证不会错误处理 C。
+
+可以看到，虽然它不会将成为垃圾的 C 压堆，但是因为同一个对象多次被处理，依然有延长 GC 的可能性。
+
+
+
+### 汤浅的算法
+
+汤浅的算法是这样的，它只关心记录开始时的那些活动对象，即对 gc 开始时的对象做一次快照；而对于那些在标记结束后清除开始前生成的新对象，汤浅认为不需要处理，因为它们在生成对象时已经被处理过了。
+
+这个算法的标记阶段函数如下：
+
+```c
+incremental_mark_phase(){
+ for(i : 1..MARK_MAX)
+ 	if(is_empty($mark_stack) == FALSE)
+ 		obj = pop($mark_stack)
+ 		for(child : children(obj))
+ 		mark(*child)
+ 	else
+ 		$gc_phase = GC_SWEEP
+ 		$sweeping = $heap_start
+ 		return
+}
+```
+
+可以看到，在标记行将结束时，Dijkstra 算法会从根开始重新来一次标记，保证新生成的对象都变成黑色，而汤浅的算法中，压根不管。
+
+但是他有自己的写入屏障：
+
+```c
+write_barrier(obj, field, newobj){
+ oldobj = *field
+ if(gc_phase == GC_MARK && oldobj.mark == FALSE)
+ 	oldobj.mark = TRUE
+	 push(oldobj, $mark_stack)
+ *field = newobj
+ }
+```
+
+能看到，当更改引用关系时，如果原来的对象还没有被处理，则对其进行标记处理，新对象不会被处理。
+
+
+
+![incremental-gc-4](./images/incremental-gc-4.jpg)
+
+可以看到，从 a 到 b 更改时，只处理 B 而不处理 C，即出现了黑色指向白色的情况，汤浅的算法中不管这种情况；但是 从 b 到 c 时，引用关系发生变化，主要是删除了 B 对 C 的引用，则会将 C 置为灰色，并入栈，保证 C 不会丢失。
+
+而分配时也略有区别：
+
+```c
+newobj(size){
+ if($free_size < HEAP_SIZE * GC_THRESHOLD)
+ 	incremental_gc()
+ chunk = pickup_chunk(size, $free_list)
+ if(chunk != NULL)
+ 	chunk.size = size
+ 	$free_size -= size
+     if($gc_phase == GC_MARK)
+        chunk.mark = TRUE
+     else if($gc_phase == GC_SWEEP && $sweeping <= chunk)
+        chunk.mark = TRUE
+     return chunk
+ else
+ 	allocation_fail()
+}
+```
+
+分配阶段和 Dijkstra 唯一的区别是，新分配的对象，在标记阶段会无条件设置为黑色。
+
+这个算法会导致大量垃圾堆在堆上。
