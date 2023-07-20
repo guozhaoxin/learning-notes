@@ -172,3 +172,29 @@ go mod download github.com/guozhaoxin/go-tools@86f01fb@v1.0.0
 在 GOPATH 下结构如下：
 
 ![multi-version](./multi-version.png)
+
+可以看到，同一个包安装了多次，而且通过版本和 commit等信息做了区分；注意的是对 commit 的确实指定了一个不存在的 v0.0.0。
+
+使用的时候如下：
+
+```go
+package main
+
+import (
+	log86 "github.com/guozhaoxin/go-tools86f0/log"
+	log0 "github.com/guozhaoxin/go-toolsv001/log"
+	"github.com/guozhaoxin/go-toolsv100/log"
+)
+
+func main(){
+	log.Init("")
+	log.Debugf("what? %s","why")
+	log0.Init("")
+	log0.Error("?????")
+	log86.Init("")
+	log86.Debugf("fsafsfsdfsfdfsdsfsfd")
+}
+
+```
+
+可以看到，多版本可以同时存在；great！
