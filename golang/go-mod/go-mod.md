@@ -125,3 +125,50 @@ require github.com/article v0.0.0-incompatible		// 引入这个包
 replace github.com/article => ../article    			// 此处作用：将此包指向本地目录的路径
 ```
 
+
+
+### 如何使用多版本
+
+这是个大问题，因为确实有需求。
+
+我自己封装了一个仓库，github.com/guozhaoxin/go-tools，打算做长期的 go 辅助工具包。
+
+这个仓库中有一个 log 包，用来包装一层日志；然后我打了两个 tag，v1.0.0 和 v0.0.1。
+
+我想在另一个仓库中使用这个包，而且同时使用该包的两个不同 tag 版本和一个指定  commit，则我的 go.mod 文件如下：
+
+
+
+```shell
+require (
+	github.com/guozhaoxin/go-toolsv001 v0.0.1
+	github.com/guozhaoxin/go-toolsv100 v1.0.0
+	github.com/guozhaoxin/go-tools86f0 v0.0.0-20230720110004-86f01fbad563
+)
+```
+
+其中，前两个是指定的版本， 第三个是指定的具体 commit id；可以看到，为了同时使用这三个版本，代码中使用的包名变了，要手动指定不重复的路径；此外指定  commit 的那个，还加上了一个不存在 v0.0.0 版本。
+
+但是这三个路径并不存在，因此需要用 replace 替换：
+
+```shell
+replace github.com/guozhaoxin/go-toolsv100 => github.com/guozhaoxin/go-tools v1.0.0
+
+replace github.com/guozhaoxin/go-toolsv001 => github.com/guozhaoxin/go-tools v0.0.1
+
+replace github.com/guozhaoxin/go-tools86f0 => github.com/guozhaoxin/go-tools v0.0.0-20230720110004-86f01fbad563
+```
+
+上面就是替换的用法，它指明了三个包真实的包信息。
+
+在命令行上安装这三个包：
+
+```shell
+go mod download github.com/guozhaoxin/go-tools@86f01fb
+go mod download github.com/guozhaoxin/go-tools@v0.0.1
+go mod download github.com/guozhaoxin/go-tools@86f01fb@v1.0.0
+```
+
+在 GOPATH 下结构如下：
+
+![multi-version](./multi-version.png)
