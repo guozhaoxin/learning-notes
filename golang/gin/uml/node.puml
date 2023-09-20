@@ -1,0 +1,37 @@
+@startuml
+'insertChild 方法
+start
+:入参;
+note right: path fullpath handlers
+
+repeat :开始循环处理path;
+
+:对 path 获取下一个模糊匹配部分 wildcard，模糊匹配开始索引 i 和是否有效标记 valid;
+if(valid 无效? 或者 wildcard 长度小于2?) is (<color:red>yes) then
+    #red :panic;
+    kill
+endif
+if(i 小于 0?) is (yes) then
+    break
+endif
+
+if(wildcard 以 : 开头?)  is (yes) then
+    if(i 大于 0?) is (yes) then
+        :更新当前节点的 path 并截取 path 为不同的部分;
+    endif
+    : 基于 wildcard 创建一个新的 param 类型节点;
+    : 调用 addChild 将新节点添加到当前节点;
+    : 当前节点指向新节点;
+    if(wildcard 比 path 剩余部分短?) is (yes) then
+        : 将 path 继续更新为不包含 wildcard 的部分
+        : 新建一个普通类型节点,并将该节点也加入到当前节点上;
+        : 当前节点指向新节点;
+    endif
+endif
+
+repeat while
+
+:给当前节点添加 path、handlers、fullpath;
+stop
+
+@enduml
