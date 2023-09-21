@@ -1,33 +1,93 @@
 @startuml
 'insertChild 方法
-start
-:入参;
-note right: path fullpath handlers
 
+<style>
+    activityDiagram {
+      diamond {
+        BackgroundColor PaleGreen
+'        LineColor #00FF00
+        FontColor black
+
+        FontSize 15
+      }
+    }
+</style>
+
+start
+note left: 传入 path fullpath handlers
+
+label 开始循环
 repeat :开始循环处理path;
 
-:对 path 获取下一个模糊匹配部分 wildcard，模糊匹配开始索引 i 和是否有效标记 valid;
-if(valid 无效? 或者 wildcard 长度小于2?) is (<color:red>yes) then
-    #red :panic;
-    kill
-endif
-if(i 小于 0?) is (yes) then
-    break
-endif
+    :对 path 获取下一个模糊匹配部分 wildcard，模糊匹配开始索引 i 和是否有效标记 valid;
+    if(valid 无效? 或者 wildcard 长度小于2?) is (<color:red>yes) then
+        #red :panic;
+        kill
+    endif
+    if(i 小于 0?) is (yes) then
+        break
+    endif
 
-if(wildcard 以 : 开头?)  is (yes) then
-    if(i 大于 0?) is (yes) then
-        :更新当前节点的 path 并截取 path 为不同的部分;
+    if(wildcard 以 : 开头?)  is (yes) then
+        if(i 大于 0?) is (yes) then
+            :更新当前节点的 path 并截取 path 为不同的部分;
+        endif
+
+        : 基于 wildcard 创建一个新的 param 类型节点
+        调用 addChild 将新节点添加到当前节点
+        当前节点指向新节点;
+
+        if(wildcard 比 path 剩余部分短?) is (yes) then
+            : 将 path 继续更新为不包含 wildcard 的部分
+            新建一个普通类型节点,并将该节点也加入到当前节点上
+            当前节点指向新节点;
+            note left #red
+            这里有问题，应该跳转到循环开始，
+            但是没有找到如何实现 continue 的功能
+            endnote
+        endif
+
+        :给当前节点设置 handlers;
+        note left
+            已经处理完毕，所有处理函数就是针对当前节点的，
+            虽然这个节点可能已经变成了各种子节点
+        end note
+        stop
     endif
-    : 基于 wildcard 创建一个新的 param 类型节点;
-    : 调用 addChild 将新节点添加到当前节点;
-    : 当前节点指向新节点;
-    if(wildcard 比 path 剩余部分短?) is (yes) then
-        : 将 path 继续更新为不包含 wildcard 的部分
-        : 新建一个普通类型节点,并将该节点也加入到当前节点上;
-        : 当前节点指向新节点;
+
+    if(wildcard 长度是否不等于 path?) is (<color:red>yes) then
+        #red :panic;
+        note left
+            走到这里，只有一种情况，那就是 *参数类型，
+            而这种类型要求必须在 path 的最后,
+            只有 wildcard 和 path 完全一样才是有效的，
+            结尾甚至不能包含 /，
+            否则就是无效的情况。
+        end note
+        kill
     endif
-endif
+
+    if(当前节点以 / 结束?) is (<color:red>yes) then
+        #red :panic;
+        note left
+            一个 catchall 类型节点，父节点不能以 / 结尾，本节点要以 / 开头；
+            如 /post/ 是父节点 path，当前要处理的是 /post/*key，就会异常。
+        end note
+        kill
+    endif
+
+    if(path 中最后一部分不是以 / 开头?) is (<color:red>yes) then
+        #red :panic;
+        note left: 道理同上
+        kill
+    endif
+
+    : 创建一个 catchAll 类型节点，其 wildcard 类型为 true，然后 fullpath 和父节点一样，但是没有path和 handler
+    当前节点指向这个新节点
+    再创建一个新的 catchAll 类型节点，这个节点存储具体的模糊匹配信息，处理函数都给这个节点，其 wildcard 为 false
+    这个新节点作为当前节点的唯一子节点挂上去;
+    stop
+
 
 repeat while
 
