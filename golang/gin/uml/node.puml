@@ -20,13 +20,15 @@ label 开始循环
 repeat :开始循环处理path;
 
     :对 path 获取下一个模糊匹配部分 wildcard，模糊匹配开始索引 i 和是否有效标记 valid;
-    if(valid 无效? 或者 wildcard 长度小于2?) is (<color:red>yes) then
-        #red :panic;
-        kill
-    endif
+
     if(i 小于 0?) is (yes) then
         break
     endif
+
+    if(valid 无效? 或者 wildcard 长度小于2?) is (<color:red>yes) then
+            #red :panic;
+            kill
+     endif
 
     if(wildcard 以 : 开头?)  is (yes) then
         if(i 大于 0?) is (yes) then
