@@ -74,7 +74,7 @@ type HandlersChain []HandlerFunc
 
 要注意的是，这里的 Context 类不是 go 标准库 context 中的那个 Context，完全是 gin 自己使用的 Context 接口，但它也确实实现了这个接口，这是后话。
 
-addRoute 方法本身比较复杂，而且巨长，需要一步一步分析。
+addRoute 方法本身比较复杂，而 且巨长，需要一步一步分析。
 
 #### 判断当前节点是否为空
 
@@ -99,6 +99,8 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 首先是查找与当前 path 的公共部分。
 
 找到以后，会先比较这个公共部分是否和当前节点的 path 完全一样，如果一样，说明这段要处理的 path，将会是当前节点的一个新节点，否则就要拆分当前节点。
+
+节点的 path 中可能是参数形式的字符串，但是这里不区分节点类型，直接就是暴力比对两个字符串开头的部分。
 
 ##### 拆分当前节点
 
@@ -157,8 +159,11 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 
 - /abc/def
 - /abc/:para/def
+- /abc/:para/
+- /abc/:para
 - /abc/:para:def/xyz
 - /abc/:/xyz
+- 
 
 ##### 查找是否有模糊匹配部分
 
@@ -210,11 +215,23 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 
 要注意的是这里的新节点 child，它的 path 是":"开头的一个字符串。
 
+比如上面的 /abc/:param，会直接新建一个 param 类型节点，而 path=":param"；
+
+/abc/:param/，也会直接新建一个 param 类型节点，path=":param"；
+
+/abc/:param/def，也会直接新建一个 param 类型节点，path=":param"；
+
 
 
 ###### 判断 path 是否还有剩余部分
 
 在上面一步的基础上，这一步会判断是不是还有没处理完毕的部分。如果没有，说明指定的 handlers 就是给新建立的 child 节点用的，对其设置 handlers 后，退出 insertChild 方法即可；否则，会新建一个不包含有效信息（path和handlers）的普通类型节点 child，并把这个节点插入到原来 child 的最后，继续下一轮循环。
+
+如 /abc/:param/def，在处理完 :param 后，会继续进入循环处理 def 部分。
+
+而 /abc/:param/，在 处理完 :param 后，同样还要再处理最后的 / ；
+
+而 /abc/:param，就不会进入这一步，在上面就处理完了。
 
 
 
@@ -245,3 +262,6 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 然后新增加一个 catchAll 类型节点，这个节点的 wildChild 同样为 true，但也同样没什么有效消息，也是匹配链条上的一个标记性节点；它被创建后，同样添加到当前节点的 child 中，将当前节点的 indices 设置为 "/"，表示它的子节点部分。然后当前节点指向这个子节点。
 
 接着再创建一个 catchAll 类型节点，它真正包含了 wildcard 部分，而处理函数也全部交给该新节点。
+
+如 /abc/def/:all 这样一个 path，它会创建两个节点：
+

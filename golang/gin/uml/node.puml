@@ -1,11 +1,107 @@
 @startuml
-'insertChild 方法
+'addRoute 方法
 
 <style>
     activityDiagram {
       diamond {
         BackgroundColor PaleGreen
 '        LineColor #00FF00
+        FontColor black
+
+        FontSize 15
+      }
+    }
+</style>
+
+start
+note left: 传入 path 和 handlers
+:当前节点增加优先级;
+
+if(当前是否是空树？) is (yes) then
+    note left: 判断条件是当前节点没有 path 且 children 属性是空数组
+    : 调用 insertChild 方法;
+    : 当前节点初始化为 root 类型;
+    stop
+endif
+
+repeat
+: 调用 longestCommonPrefix 找到 path 和当前节点的 path 的公共部分,获取这个索引 i;
+
+if(公共部分比当前节点的 path 短?) is (yes) then
+    : 基于两者不同的部分，构建一个 static 类型的节点 child,当前节点的所有 children 和 indices 都转移给 child;
+    : child 节点设置为当前节点唯一的子节点
+    基于两个 path 第一个不同的字符，作为当前节点新的 indices
+    当前节点 wildChild 强制设置为 false，因为确实没有模糊部分了
+    当前节点的处理函数置空，因为这不是完整的路由了
+    更新当前节点的全路径;
+endif
+
+if(path 是否还有剩余?) is(yes) then
+    note right: 需要对剩余的 path 继续处理
+    : 更新 path 为剩余的部分;
+    if(剩余 path 是否是一段完整的新子path，且当前节点是只有一个子节点的 param类型节点?) is(yes) then
+        : 当前节点执行这个子节点;
+        : 继续下一次循环;
+        note left #red
+            这里有问题，应该跳转到循环开始，
+            但是没有找到如何实现 continue 的功能
+        end note
+    endif
+
+    : 查找当前节点的子节点中，是否有节点的开头和 path 开头吻合的;
+    if(有?) is(yes) then
+        : 调整这个子节点在当前节点中的位置;
+        note right: 子节点在 children 中是有优先级的
+        : 当前节点设置为该子节点;
+        : 继续下一次循环;
+        note left #red
+            这里有问题，应该跳转到循环开始，
+            但是没有找到如何实现 continue 的功能
+        end note
+    endif
+
+    if(path 不是参数类型的且当前节点不是 catchaAll 类型) is(yes) then
+        : 新建一个普通类型节点 child，并将其插入到当前节点的 children 中;
+        : 将当前节点指向 child;
+    else
+        : 当前节点更新为其子节点的最后一个节点;
+        note right: 这个新的子节点极有可能是有个 wildcard 类型的节点
+        if(当前节点 path 是剩余 path 的子部分?) is(yes) then
+            : 继续下一次循环;
+             note left #red
+                这里有问题，应该跳转到循环开始，
+                但是没有找到如何实现 continue 的功能
+             end note
+        endif
+        #red :panic;
+        note left
+            走到这里，必然发生路由冲突，不管是哪种情况。
+        end note
+        kill
+    endif
+    : 调用节点的 insertChild 方法，插入新节点;
+    stop
+
+    if(当前节点已经设置过处理函数?) is(<color:red>yes) then
+        #red: panic;
+        note left
+            走到这里，必然发生路由冲突，不管是哪种情况。
+        end note
+        kill
+    endif
+    : 给当前节点设置处理函数和 fullpath;
+    stop
+endif
+
+@enduml
+
+@startuml
+'insertChild 方法
+
+<style>
+    activityDiagram {
+      diamond {
+        BackgroundColor PaleGreen
         FontColor black
 
         FontSize 15
@@ -46,7 +142,7 @@ repeat :开始循环处理path;
             note left #red
             这里有问题，应该跳转到循环开始，
             但是没有找到如何实现 continue 的功能
-            endnote
+            end note
         endif
 
         :给当前节点设置 handlers;
@@ -90,10 +186,23 @@ repeat :开始循环处理path;
     这个新节点作为当前节点的唯一子节点挂上去;
     stop
 
-
 repeat while
 
 :给当前节点添加 path、handlers、fullpath;
 stop
+
+@enduml
+
+@startuml
+'不同有效 path 调用 insertChild 的结构
+'/abc/def
+'/abc/:param
+'/abc/:param/
+'/abc/:param/other
+'/abc/:param/*all
+
+map root{
+
+}
 
 @enduml
