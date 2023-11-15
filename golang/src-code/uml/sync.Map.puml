@@ -1,0 +1,88 @@
+@startuml
+' Load 过程
+start
+:尝试从 read 中读取;
+note right
+    从 read 中读取时，不需要加锁，是原子操作
+end note
+if (read 中不存在，且 dirty 有数据) then (yes)
+    : 加锁;
+    : 再次尝试从 read 中读取;
+    if(从 read 没有读取到，且 dirty 不为空) then
+        : 从 dirty 中读取;
+        : 执行 missLocked 方法，校验是否有太多不命中，需要重新初始化 dirty;
+        : 放锁;
+    endif
+endif
+if (没有查到) then (yes)
+    stop
+    note right
+        确实不存在键值对，需要返回 nil 和 false
+    end note
+else
+    : 调用 entry 的 load 方法返回结果;
+    note right
+        load 中会判断，entry 对应的 p 指针是什么状态，处于 nil 和 expunged 状态的指针，没有有效键值对，要返回 nil 和 false；
+    end note
+
+stop
+
+@enduml
+
+
+@startuml
+' Delete 过程
+start
+: 尝试从 read 中读取;
+if (read 中不存在，且 dirty 有数据) then (yes)
+    : 加锁;
+    : 再次尝试从 read 中读取;
+    if (read 中没有，但是 dirty 有数据) then (yes)
+        : 从 dirty 中直接删除;
+        : 触发一次 missLocked 调用;
+    endif
+    : 放锁;
+endif
+if (查询到键值对) then (yes)
+    : 调用查询到的 entry 的 delete 方法;
+    note right
+        delete 方法中，会将 entry 的 p 指针置为 nil；
+        需要注意的是，如果这个键值对在 read 中，此时 read 中依然保持有 key 和 entry 之间的映射关系；
+        而如果是在 dirty 中发现的，则没有这个映射关系，注意上面直接调用 map 的 delete 函数；
+    end note
+    stop
+endif
+stop
+@enduml
+
+
+@startuml
+' Store 过程
+start
+: 尝试从 read 中读取;
+if (read 中存在) then (yes)
+    : 调用 entry 的 tryStore 方法，尝试直接更新 entry 的 p 指针;
+    if(更新成功) then (yes)
+        stop
+    endif
+endif
+: 加锁;
+: 再次尝试从 read 中读取;
+if(read 中存在) then (yes)
+    if(entry 中 p 是 expunged) then (yes)
+        : 将 entry 的 p 指针改为 nil;
+        : 直接在 dirty 中添加键值对;
+    endif
+    : 调用 entry 的 storeLocked 方法更新其 p 指针的值;
+else if(在 dirty 中查到键值对) then (yes)
+    : 直接调用 entry 的storeLocked 方法更新其 p 指针的值;
+else
+    if(dirty 为空) then (yes)
+        : 初始化 dirty;
+        : 将 read 中的键值对复制到 dirty 中;
+    endif
+    : 在 dirty 中新增要加入的键值对;
+endif
+: 放锁;
+stop
+@enduml
