@@ -1,0 +1,32 @@
+@startuml
+'pdb 包 main 函数逻辑
+
+<style>
+    activityDiagram {
+      diamond {
+        BackgroundColor PaleGreen
+'        LineColor #00FF00
+        FontColor black
+
+        FontSize 15
+      }
+    }
+</style>
+
+start
+:解析参数;
+:实例化 Pdb 对象;
+
+repeat
+    if (以 module 运行?) then (yes)
+        #HotPink:运行 pdb 对象的 _runmodule 方法;
+    else (no)
+        #HotPink:运行 pdb 对象的 _runscript 方法;
+    endif
+repeat while(继续下一次?)
+
+
+
+stop
+
+@enduml

@@ -100,7 +100,7 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 
 找到以后，会先比较这个公共部分是否和当前节点的 path 完全一样，如果一样，说明这段要处理的 path，将会是当前节点的一个新节点，否则就要拆分当前节点。
 
-节点的 path 中可能是参数形式的字符串，但是这里不区分节点类型，直接就是暴力比对两个字符串开头的部分。
+
 
 ##### 拆分当前节点
 
@@ -265,3 +265,141 @@ if len(n.path) == 0 && len(n.children) == 0 { // todo gold 什么情况下，两
 
 如 /abc/def/:all 这样一个 path，它会创建两个节点：
 
+
+
+------------------------------------
+
+鉴于 node 添加路由这块太复杂，然后浪费时间又多，不容易出活儿，暂时告一段落。
+
+下面是一些路由注册的层级结构，先暂时记录下来：
+
+r.GET("/get",getting2)
+r.GET("/get/:abc",getting2)
+r.GET("/get/def/ghi",getting2)
+
+  type= 1
+  wildChild= false
+  priority= 3
+  indices= /
+  fullPath= /get
+  path= /get
+  handler= 3
+	  type= 0
+	  wildChild= true
+	  priority= 2
+	  indices= d
+	  fullPath= /get/:abc
+	  path= /
+	  handler= 0
+		  type= 0
+		  wildChild= false
+		  priority= 1
+		  indices= 
+		  fullPath= /get/def/ghi
+		  path= def/ghi
+		  handler= 3
+		  type= 2
+		  wildChild= false
+		  priority= 1
+		  indices= 
+		  fullPath= /get/:abc
+		  path= :abc
+		  handler= 3
+
+---------------------------------------------
+
+r.GET("/get/",getting2)
+r.GET("/get/:abc",getting2)
+r.GET("/get/def/ghi",getting2)
+
+  type= 1
+  wildChild= true
+  priority= 3
+  indices= d
+  fullPath= /get/
+  path= /get/
+  handler= 3
+	  type= 0
+	  wildChild= false
+	  priority= 1
+	  indices= 
+	  fullPath= /get/def/ghi
+	  path= def/ghi
+	  handler= 3
+	  type= 2
+	  wildChild= false
+	  priority= 1
+	  indices= 
+	  fullPath= /get/:abc
+	  path= :abc
+	  handler= 3
+
+
+-------------------------------------------
+r.GET("/get",getting)
+r.GET("/get/*abc",getting)
+
+  type= 1
+  wildChild= false
+  priority= 2
+  indices= /
+  fullPath= /get
+  path= /get
+  handler= 3
+	  type= 0
+	  wildChild= false
+	  priority= 1
+	  indices= /
+	  fullPath= /get/*abc
+	  path= 
+	  handler= 0
+		  type= 3
+		  wildChild= true
+		  priority= 1
+		  indices= 
+		  fullPath= /get/*abc
+		  path= 
+		  handler= 0
+			  type= 3
+			  wildChild= false
+			  priority= 1
+			  indices= 
+			  fullPath= /get/*abc
+			  path= /*abc
+			  handler= 3
+
+----------------------------------------
+r.GET("/get/\*abc",getting)
+ type= 1
+  wildChild= false
+  priority= 1
+  indices= /
+  fullPath= /
+  path= /get
+  handler= 0
+	  type= 3
+	  wildChild= true
+	  priority= 1
+	  indices= 
+	  fullPath= /get/*abc
+	  path= 
+	  handler= 0
+		  type= 3
+		  wildChild= false
+		  priority= 1
+		  indices= 
+		  fullPath= /get/\*abc
+		  path= /*abc
+		  handler= 3
+
+
+
+一些参考的帖子
+
+https://juejin.cn/post/6844904070784745486
+
+https://studygolang.com/articles/26914
+
+https://www.infoq.cn/article/8tg1alapeyfcakf6zwgh
+
+https://www.liwenzhou.com/posts/Go/gin-sourcecode/
