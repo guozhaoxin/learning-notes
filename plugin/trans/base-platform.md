@@ -1,6 +1,6 @@
 Actions
 
-所有继承了 AnAction 的类，这同样是一个抽象类，子类需要实现它的 actionPerformed() 方法，它本身会接受一个 AnActionEvent 对象。当一个注册的 action，其菜单项被选中时，对应类的 actionPerformed 就会执行。
+所有继承了 AnAction 的类，这同样是一个抽象类，子类需要实现它的 actionPerformed() 方法，它本身会接受一个 AnActionEvent 对象；同时建议重载 update()方法；如果使用的是2022.3 版本后的idea，getActionUpdateThread 方法也必须重载。当一个注册的 action，其菜单项被选中时，对应类的 actionPerformed 就会执行。
 
 
 
