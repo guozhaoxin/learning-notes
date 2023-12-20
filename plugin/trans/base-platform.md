@@ -30,3 +30,18 @@ services 好像也是插件，当插件代码调用对应 ComponentManager 实�
 
 有三种 services，应用级别的、工程级别的、模块级别的，其中模块级别的是最不推荐的，因为容易造成占用大量内存。
 
+
+
+状态持久化
+
+所谓控件状态的持久化，是指在 ide 重启后，控件的相关值可以维持上次的。
+
+要实现这样的功能，需要继承 [`PersistentStateComponent`](https://github.com/JetBrains/intellij-community/tree/idea/233.11799.241/platform/projectModel-api/src/com/intellij/openapi/components/PersistentStateComponent.java) 接口，大体过程如下：
+
+1 定义一个 service，标记实现了 PersistentStateComponent 接口；
+
+2 定义状态类；
+
+3 用 State 标记存储位置；
+
+状态类必须有默认构造器。
