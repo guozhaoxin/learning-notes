@@ -26,3 +26,11 @@ rabbitmqctl resume_listeners [-n rabbit@hostname]
 ```
 
 shown as above, the first is used to stop connections, while second used to resume connections. on both cases, you can invoke commands against an arbitrary node, if no -n parameter, localhost default.
+
+
+
+#### inter-node communication port range
+
+rabbit node uses a port to communicate with other nodes while these ports are in a range, called distribution port, and the port has a default linked with listening port.
+
+while rabbit command line tools also use a range of ports which are linked with listening port too.
